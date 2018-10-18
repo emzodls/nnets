@@ -1,10 +1,8 @@
 from random import random
-import unicodedata
-import string
 import torch
 
-all_letters = string.ascii_letters + " .,;'"
-n_letters = len(all_letters)
+letters = 'abcdefghijklmnopqrstuvwxyz'
+letterToIdx = dict(zip(letters,range(26)))
 
 def split_set(data,fractionTraining):
 
@@ -20,21 +18,12 @@ def split_set(data,fractionTraining):
     return train,test
 
 
-
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-        and c in all_letters
-    )
-
-print(unicodeToAscii('Ślusàrski'))
-
 def letterToIndex(letter):
-    return all_letters.find(letter)
+    return letterToIdx[letter]
 
 def lineToTensor(line):
-    tensor = torch.zeros(len(line), 1, n_letters)
+    line = line.lower()
+    tensor = torch.zeros(len(line), 1, 26)
     for li, letter in enumerate(line):
         tensor[li][0][letterToIndex(letter)] = 1
     return tensor

@@ -3,7 +3,7 @@ from unidecode import unidecode
 from glob import glob
 import os
 
-data_source = '/Volumes/lab_data/language_training/it'
+data_source = '/Volumes/lab_data/language_training/txt/pt'
 
 def process(text,min_size):
     words = re.sub(r'[^a-zA-Z ]', ' ', text)
@@ -22,5 +22,5 @@ def process_lang(path):
 
 
 test = process_lang(data_source)
-with open('/Volumes/lab_data/language_training/italian.txt','w') as outfile:
+with open('/Volumes/lab_data/language_training/pt.txt','w') as outfile:
     outfile.write(','.join(test))
