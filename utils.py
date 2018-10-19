@@ -5,15 +5,16 @@ letters = 'abcdefghijklmnopqrstuvwxyz'
 letterToIdx = dict(zip(letters,range(26)))
 
 def split_set(data,fractionTraining):
-
     train = set()
     test = set()
-    dice = random()
-
-    if dice <= fractionTraining:
-        train.add(data.pop())
-    else:
-        test.add(data.pop())
+    while data:
+        dice = random()
+        element = data.pop()
+        if element:
+            if dice <= fractionTraining:
+                train.add(element)
+            else:
+                test.add(element)
 
     return train,test
 
