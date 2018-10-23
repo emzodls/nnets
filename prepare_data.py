@@ -3,7 +3,7 @@ from unidecode import unidecode
 from glob import glob
 import os
 
-data_source = '/Volumes/lab_data/language_training/txt/pt'
+data_source = '/Volumes/lab_data/languages/en'
 
 def process(text,min_size):
     words = re.sub(r'[^a-zA-Z ]', ' ', text)
@@ -17,10 +17,10 @@ def process_lang(path):
     dictionary = set()
     files_to_process = glob(os.path.join(path,'*.txt'))
     for document in files_to_process:
-        dictionary.update(process(open(document, encoding="utf-8").read(),4))
+        dictionary.update(process(open(document, encoding="ISO-8859-1").read(),4))
     return dictionary
 
 
 test = process_lang(data_source)
-with open('/Volumes/lab_data/language_training/pt.txt','w') as outfile:
+with open('/Volumes/lab_data/languages/en.txt','w') as outfile:
     outfile.write(','.join(test))

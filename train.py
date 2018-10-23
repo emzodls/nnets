@@ -32,6 +32,8 @@ languages = ['en','fr','de','it','es','pt']
 
 negatives = '/Volumes/lab_data/language_training/negatives.txt'
 
+outfile = 'nnTraining.log'
+
 
 ## Select Language to Exclude Randomly
 ## first generate the training set
@@ -53,17 +55,17 @@ for language in languages:
 
 trainingSet = [(neg, 0) for neg in negativeTrainSet]
 trainingSet.extend((pos,1) for pos in positives)
-
-print('Training with {} positives and {} negatives, for a total of {} exemplars'.format(len(positives),
+with open(outfile,'a') as out:
+    out.write('Training with {} positives and {} negatives, for a total of {} exemplars\n'.format(len(positives),
                             len(negativeTrainSet),len(trainingSet)))
 
-n_epochs = 30
+n_epochs = 10
 n_iters = 100000
 print_every = 5000
 plot_every = 1000
 frac_train = 0.95
 
-n_hidden = 256
+n_hidden = 512
 
 learning_rate = 0.01
 
@@ -111,7 +113,8 @@ start = time.time()
 
 for epoch in range(n_epochs):
     ## Shuffle Training Set Every Epoch and Save 5% for validation
-    print('Starting Epoch {}'.format(epoch+1))
+    with open(outfile,'a') as out:
+        out.write('Starting Epoch {}'.format(epoch+1))
     shuffle(trainingSet)
     numberTrained = len(trainingSet[:trainingIdx])
     current_loss = 0
@@ -123,12 +126,14 @@ for epoch in range(n_epochs):
         if idx % print_every == 0:
             guess, guess_i = category_from_output(output)
             correct = '✓' if guess == category else '✗ (%s)' % category
-            print('%d %d%% (%s) %.4f %s / %s %s' % (
+            with open(outfile,'a') as out:
+                out.write('%d %d%% (%s) %.4f %s / %s %s' % (
                 idx, idx / numberTrained * 100, timeSince(start), loss, line, guess, correct))
 
-    print('Epoch {} finished, Average Loss = {}'.format(epoch + 1,current_loss/numberTrained))
-    all_losses.append(current_loss/numberTrained)
-    print('Testing Model with Validation Data.')
+    all_losses.append(current_loss / numberTrained)
+    with open(outfile,'a') as out:
+        out.write('Epoch {} finished, Average Loss = {}'.format(epoch + 1,current_loss/numberTrained))
+        out.write('Testing Model with Validation Data.')
 
     with torch.no_grad():
         correct_word = 0
@@ -139,18 +144,18 @@ for epoch in range(n_epochs):
             category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
             output = evaluate(line_tensor)
             guess = category_from_output(output)
-            if category == 1:
+            print(category,guess)
+            if category == 'word':
                 total_word += 1
-                if guess == 1:
+                if guess[1] == 1:
                     correct_word += 1
             else:
                 total_not_word += 1
-                if guess == 0:
+                if guess[1] == 0:
                     correct_not_word += 1
-        print('Epoch {}, % Correct Word = {}, % Correct Not Word = {}, Total Score = {}'.format(epoch+1,
+        with open(outfile,'a') as out:
+            out.write('Epoch {}, % Correct Word = {}, % Correct Not Word = {}, Total Score = {}'.format(epoch+1,
                                                                                                 (correct_word/total_word)*100,
                                                                                                 (correct_not_word / total_not_word) * 100,
                                                                                                 ((correct_word+ correct_not_word) / (total_not_word+total_word)) * 100))
-
-
 torch.save(model.state_dict(), 'model.ckpt')
