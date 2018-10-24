@@ -26,11 +26,11 @@ def category_from_output(output):
     category_i = top_i[0][0].item()
     return categories[category_i], category_i
 
-PATH_TO_SETS = '/Volumes/lab_data/language_training'
+PATH_TO_SETS = '/Users/emzodls/Documents/training_data'
 
 languages = ['en','fr','de','it','es','pt']
 
-negatives = '/Volumes/lab_data/language_training/negatives.txt'
+negatives = '/Users/emzodls/Documents/training_data/negatives.txt'
 
 
 ## Select Language to Exclude Randomly
@@ -40,7 +40,7 @@ language_excluded = 'en'
 
 # Only take 60% of the negative test set for training
 
-negativeSet = set(open('/Volumes/lab_data/language_training/negatives.txt').read().strip().split(','))
+negativeSet = set(open('/Users/emzodls/Documents/training_data/negatives.txt').read().strip().split(','))
 
 negativeTrainSet,negativeTestSet = split_set(negativeSet,0.6)
 
@@ -51,27 +51,30 @@ for language in languages:
         positives.update(open(os.path.join(PATH_TO_SETS,language+'.txt')).read().strip().split(','))
 
 
-trainingSet = [(neg, 0) for neg in negativeTrainSet]
-trainingSet.extend((pos,1) for pos in positives)
+masterSet = [(neg, 0) for neg in negativeTrainSet]
+masterSet.extend((pos,1) for pos in positives)
 
-print('Training with {} positives and {} negatives, for a total of {} exemplars'.format(len(positives),
-                            len(negativeTrainSet),len(trainingSet)))
 
-n_epochs = 30
-n_iters = 100000
-print_every = 5000
+#shuffle(trainingSet)
+
+## Test with only 30% of training set initially for testing
+
+#trainingSet = trainingSet[:math.floor(len(trainingSet)*0.1)]
+
+n_epochs = 10
+print_every = 10000
 plot_every = 1000
 frac_train = 0.95
 
 n_hidden = 256
 
-learning_rate = 0.01
+learning_rate = 0.001
 
 model = RNN(26,n_hidden,2)
 criterion = nn.NLLLoss()
-optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
-
-
+#optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
+#optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
+optimizer = torch.optim.ASGD(model.parameters(),lr=learning_rate)
 
 def train(category_tensor,line_tensor):
     model.zero_grad()
@@ -82,21 +85,28 @@ def train(category_tensor,line_tensor):
 
     loss = criterion(output,category_tensor)
     loss.backward()
-
+    params = list(model.parameters()) + list(criterion.parameters())
+    torch.nn.utils.clip_grad_norm_(params,0.2)
     optimizer.step()
 
     return output, loss.item()
 
+def validate(category_tensor,line_tensor):
+    model.eval()
+    hidden = model.init_hidden()
+    for i in range(line_tensor.size()[0]):
+        output, hidden  = model(line_tensor[i],hidden)
+    loss = criterion(output,category_tensor)
+    return output, loss.item()
 
 def evaluate(line_tensor):
+    model.eval()
     hidden = model.init_hidden()
-
     for i in range(line_tensor.size()[0]):
         output, hidden = model(line_tensor[i], hidden)
-
     return output
 
-trainingIdx = math.floor(len(trainingSet) * frac_train)
+trainingIdx = math.floor(len(masterSet) * frac_train)
 
 all_losses = []
 
@@ -112,7 +122,12 @@ start = time.time()
 for epoch in range(n_epochs):
     ## Shuffle Training Set Every Epoch and Save 5% for validation
     print('Starting Epoch {}'.format(epoch+1))
-    shuffle(trainingSet)
+    shuffle(masterSet)
+    trainingSet = masterSet[:math.floor(len(masterSet) * 0.15)]
+    print('Training with {} positives and {} negatives, for a total of {} exemplars'.format(len(positives),
+                                                                                            len(negativeTrainSet),
+                                                                                            len(trainingSet)))
+    trainingIdx = math.floor(len(trainingSet) * frac_train)
     numberTrained = len(trainingSet[:trainingIdx])
     current_loss = 0
     for idx,labeled_pair in enumerate(trainingSet[:trainingIdx]):
@@ -135,22 +150,31 @@ for epoch in range(n_epochs):
         total_word = 0
         correct_not_word = 0
         total_not_word = 0
+        total_val_loss = 0
+        numValSet = len(trainingSet[trainingIdx:])
+        print('Validating with {} samples'.format(len(trainingSet[trainingIdx:])))
         for labeled_pair in trainingSet[trainingIdx:]:
             category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
-            output = evaluate(line_tensor)
+            output,val_loss = validate(category_tensor,line_tensor)
             guess = category_from_output(output)
-            if category == 1:
+            total_val_loss += loss
+            #print(category,guess)
+            if category == 'word':
                 total_word += 1
-                if guess == 1:
+                if guess[0] == category:
                     correct_word += 1
             else:
                 total_not_word += 1
-                if guess == 0:
+                if guess[0] == category:
                     correct_not_word += 1
-        print('Epoch {}, % Correct Word = {}, % Correct Not Word = {}, Total Score = {}'.format(epoch+1,
+        print(correct_not_word,correct_word)
+        print('Epoch {}, Correct Word = {} %, Correct Not Word = {} %, Total Score = {}'.format(epoch+1,
                                                                                                 (correct_word/total_word)*100,
                                                                                                 (correct_not_word / total_not_word) * 100,
                                                                                                 ((correct_word+ correct_not_word) / (total_not_word+total_word)) * 100))
-
-
-torch.save(model.state_dict(), 'model.ckpt')
+        print('Average Loss = {}'.format(total_val_loss/numValSet))
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss},'model_epoch_{}.ckpt'.format(epoch))
