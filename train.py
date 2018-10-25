@@ -77,8 +77,8 @@ optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,n
 
 if os.path.isfile('model_SGD_epoch_9.ckpt'):
     checkpoint = torch.load('model_SGD_epoch_9.ckpt')
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     print("=> loaded checkpoint ")
     with open('logfile.log','a') as outfile:
         outfile.write("=> loaded checkpoint\n")
