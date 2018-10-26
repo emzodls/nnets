@@ -9,16 +9,7 @@ from rnn import RNN
 
 from random import shuffle
 
-from utils import split_set,lineToTensor
-
-categories = {0:'not word',1:'word'}
-
-def prepareTensors(labeled_pair):
-    sequence,label = labeled_pair
-    category_tensor = torch.tensor([label], dtype=torch.long)
-    line_tensor = lineToTensor(sequence)
-    category = categories[label]
-    return category, sequence, category_tensor, line_tensor
+from utils import split_set,lineToTensor,prepareTensors,categories
 
 
 def category_from_output(output):
@@ -155,10 +146,10 @@ for epoch in range(n_epochs):
             guess, guess_i = category_from_output(output)
             correct = '✓' if guess == category else '✗ (%s)' % category
             print('%d %d%% (%s) %.4f %s / %s %s' % (
-                idx, idx / numberTrained * 100, timeSince(start), loss, line, guess, correct))
+                idx, idx / numberTrained * 100, timeSince(start), current_loss/(idx+1), line, guess, correct))
             with open('logfile.log', 'a') as outfile:
                 outfile.write('%d %d%% (%s) %.4f %s / %s %s\n' % (
-                    idx, idx / numberTrained * 100, timeSince(start), loss, line, guess, correct))
+                    idx, idx / numberTrained * 100, timeSince(start), current_loss/(idx+1), line, guess, correct))
 
     print('Epoch {} finished, Average Loss = {}'.format(epoch + 1,current_loss/numberTrained))
     all_losses.append(current_loss/numberTrained)

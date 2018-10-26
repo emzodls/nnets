@@ -17,10 +17,11 @@ def process_lang(path):
     dictionary = set()
     files_to_process = glob(os.path.join(path,'*.txt'))
     for document in files_to_process:
-        dictionary.update(process(open(document, encoding="ISO-8859-1").read(),4))
+        dictionary.update(process(open(document, encoding="utf-8").read(),4))
     return dictionary
 
 
-test = process_lang(data_source)
-with open('/Volumes/lab_data/languages/en.txt','w') as outfile:
+#test = process_lang(data_source)
+test = process(open('/Users/emzodls/Downloads/words.txt', encoding="utf-8").read(),4)
+with open('/Users/emzodls/Documents/en_dict.txt','w') as outfile:
     outfile.write(','.join(test))
