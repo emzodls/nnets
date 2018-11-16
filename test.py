@@ -81,7 +81,7 @@ criterion = nn.NLLLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
 
 if os.path.isfile(saved_model_path):
-    checkpoint = torch.load('model_SGD_epoch_9.ckpt')
+    checkpoint = torch.load('/Users/emzodls/nnets/model_SGD_epoch_24.ckpt')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     print("=> loaded checkpoint ")
