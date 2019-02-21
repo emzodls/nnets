@@ -37,6 +37,7 @@ def category_from_output(output):
 
 PATH_TO_SETS = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets'
 amino_acids = set('ACDEFGHIKLMNPQRSTVWY')
+test_set_folder = '/Volumes/lab_data/Ripps/training_sets/test_sets'
 
 # negatives = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/negatives-trim.txt'
 # negative_lanthi = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/lanthi-neg.txt'
@@ -89,8 +90,8 @@ model = RNN(20,n_hidden,2)
 
 criterion = nn.NLLLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
-
 saved_model_path = 'model_peptide_SGD_epoch_58.ckpt'
+#saved_model_path = 'ripper_rodeo_200_epochs_198.ckpt'
 
 if os.path.isfile(saved_model_path):
     checkpoint = torch.load(saved_model_path)
@@ -114,71 +115,42 @@ start = time.time()
 
 
 with torch.no_grad():
-    with open('putative_peptides.fa','w') as outfile:
-        wrong_words = set()
-        #test_set = [(str(x.seq),x.name) for x in SeqIO.parse('/Users/emzodls/Downloads/GCA_001770815.1_ASM177081v1_orfs.fa','fasta')]
-        #test_set = []
-        leader = 0
-        not_leader = 0
-        for idx,x in enumerate(SeqIO.parse('/Users/emzodls/Downloads/rep_genomes_CDS_filtered.fa', 'fasta')):
-            if x.seq[-1] == '*':
-                sequence = x.seq[:-1]
-            else:
-                sequence = x.seq
-            if all(y in amino_acids for y in str(sequence)):
-
-            #numToTest = len(test_set)
-            #print('Testing {} peptides'.format(numToTest))
-            # for idx,(seq,name) in enumerate(test_set):
-                category, line, category_tensor, line_tensor = prepareTensors((sequence,1))
-                output = evaluate(model,line_tensor)
-                guess = category_from_output(output)
-                if guess[0] == 'word':
-                    leader += 1
-                    outfile.write('>{}\n{}\n'.format(x.name,line))
+    wrong_words = set()
+    test_files = glob(os.path.join(test_set_folder,'*.txt'))
+    for test_set_file in test_files:
+        test_pos = set()
+        test_set_name = os.path.splitext(os.path.split(test_set_file)[1])[0]
+        for line in open(test_set_file):
+            line = line.strip().upper()
+            if all(x in amino_acids for x in line):
+                test_pos.add(line)
+        print('Test Set: {}, Testing on {} Unique Percursor Peptides'.format(test_set_name,len(test_pos)))
+        correct_word = 0
+        total_word = 0
+        correct_not_word = 0
+        total_not_word = 0
+        total_val_loss = 0
+        for idx,labeled_pair in enumerate((pos,1) for pos in test_pos):
+            category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
+            output = evaluate(model,line_tensor)
+            guess = category_from_output(output)
+            if category == 'word':
+                total_word += 1
+                if guess[0] == category:
+                    correct_word += 1
                 else:
-                    not_leader +=1
-                if idx % print_every == 0:
-                    print('%d (%s) %s / %s ' % (
-                        idx, timeSince(start), line, guess))
-    # print('Total = {}, Leader = {}, Not Leader = {}'.format(len(test_set),leader,not_leader))
-    #
-    # wrong_words = set()
-    # test_files = glob(os.path.join(test_set_folder,'*.txt'))
-    # for test_set_file in test_files:
-    #     test_pos = set()
-    #     test_set_name = os.path.splitext(os.path.split(test_set_file)[1])[0]
-    #     for line in open(test_set_file):
-    #         line = line.strip().upper()
-    #         if all(x in amino_acids for x in line):
-    #             test_pos.add(line)
-    #     print('Test Set: {}, Testing on {} Unique Percursor Peptides'.format(test_set_name,len(test_pos-positives)))
-    #     correct_word = 0
-    #     total_word = 0
-    #     correct_not_word = 0
-    #     total_not_word = 0
-    #     total_val_loss = 0
-    #     for idx,labeled_pair in enumerate((pos,1) for pos in test_pos-positives):
-    #         category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
-    #         output = evaluate(model,line_tensor)
-    #         guess = category_from_output(output)
-    #         if category == 'word':
-    #             total_word += 1
-    #             if guess[0] == category:
-    #                 correct_word += 1
-    #             else:
-    #                 wrong_words.add(line)
-    #         else:
-    #             total_not_word += 1
-    #             if guess[0] == category:
-    #                 correct_not_word += 1
-    #         if idx % print_every == 0:
-    #             guess, guess_i = category_from_output(output)
-    #             correct = '✓' if guess == category else '✗ (%s)' % category
-    #             print('%d %d%% (%s) %s / %s %s' % (
-    #                 idx, idx / len(positives) * 100, timeSince(start), line, guess, correct))
-    #
-    #     print('Correct Word = {} %'.format((correct_word / total_word) * 100))
+                    wrong_words.add(line)
+            else:
+                total_not_word += 1
+                if guess[0] == category:
+                    correct_not_word += 1
+            if idx % print_every == 0:
+                guess, guess_i = category_from_output(output)
+                correct = '✓' if guess == category else '✗ (%s)' % category
+                print('%d %d%% (%s) %s / %s %s' % (
+                    idx, idx / len(test_pos) * 100, timeSince(start), line, guess, correct))
+
+        print('Correct Word = {} %'.format((correct_word / total_word) * 100))
 
     #
     # with open('wrong_words.txt','w') as outfile:

@@ -23,7 +23,10 @@ amino_acids = set('ACDEFGHIKLMNPQRSTVWY')
 negatives = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/negatives-trim.txt'
 negative_lanthi = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/lanthi-neg.txt'
 
-positive_files = ['lanthi-all-clean','lasso-as4-clean','thio-all-clean']
+positive_files = ['lanthi-all-clean','lasso-as4-clean','thio-all-clean','ripper-lasso-rodeo-all','ripper-micro-rodeo-all',
+                  'ripper-thio-rodeo-all','sacti-as4-clean','mcgarvey','ripper-hmm-pos']
+
+logfile_name = 'logfile_all.log'
 
 positives = set()
 
@@ -43,16 +46,21 @@ for line in open(negatives):
         negativeSet.add(line)
 
 negativeLantiSet = set()
-for line in open(negatives):
+for line in open(negative_lanthi):
     line=line.strip().upper()
     if line not in positives:
         if all(x in amino_acids for x in line):
             negativeLantiSet.add(line)
 
-negativeTrainSet,negativeTestSet = split_set(negativeSet,0.35)
-negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeSet,0.35)
+positives = set(x for x in positives if len(x) >= 20 and len(x) <= 120)
+negativeSet = set(x for x in negativeSet if len(x) >= 20 and len(x) <= 120)
+negativeLantiSet = set(x for x in negativeLantiSet if len(x) >= 20 and len(x) <= 120)
 
+negativeTrainSet,negativeTestSet = split_set(negativeSet,0.50)
+negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeSet,0.50)
 
+print('Total Number of positives: {}'.format(len(positives)))
+print('Total Number of negatives: {}'.format(len(negativeTrainSet|negativeLantiTrainSet)))
 
 masterSet = [(neg, 0) for neg in negativeTrainSet]
 masterSet.extend((neg, 0) for neg in negativeLantiTrainSet)
@@ -65,9 +73,9 @@ masterSet.extend((pos,1) for pos in positives)
 
 #trainingSet = trainingSet[:math.floor(len(trainingSet)*0.1)]
 
-n_epochs = 30
-print_every = 100
-frac_train = 0.95
+n_epochs = 200
+print_every = 500
+frac_train = 0.90
 
 n_hidden = 512
 
@@ -78,12 +86,12 @@ model = RNN(20,n_hidden,2)
 criterion = nn.NLLLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
 
-if os.path.isfile('model_peptide_SGD_epoch_59.ckpt'):
-    checkpoint = torch.load('model_peptide_SGD_epoch_59.ckpt')
+if os.path.isfile('ripper_rodeo_200_epochs_198.ckpt'):
+    checkpoint = torch.load('ripper_rodeo_200_epochs_198.ckpt')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     print("=> loaded checkpoint ")
-    with open('logfile.log','a') as outfile:
+    with open(logfile_name,'a') as outfile:
         outfile.write("=> loaded checkpoint\n")
 
 #optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
@@ -134,14 +142,14 @@ start = time.time()
 
 for epoch in range(n_epochs):
     ## Shuffle Training Set Every Epoch and Save 5% for validation
-    print('Starting Epoch {}'.format(epoch+1 + 2 *n_epochs))
+    print('Starting Epoch {}'.format(epoch+1))
     shuffle(masterSet)
     trainingSet = masterSet
     print('Training with {} positives and {} negatives, for a total of {} exemplars'.format(len(positives),
                                                                                             len(negativeTrainSet|negativeLantiTrainSet),
                                                                                             len(trainingSet)))
-    with open('logfile.log', 'a') as outfile:
-        outfile.write('Starting Epoch {}\n'.format(epoch+1 + 2 *n_epochs))
+    with open(logfile_name, 'a') as outfile:
+        outfile.write('Starting Epoch {}\n'.format(epoch+1 ))
         outfile.write('Training with {} positives and {} negatives, for a total of {} exemplars\n'.format(len(positives),
                                                                                             len(negativeTrainSet|negativeLantiTrainSet),
                                                                                             len(trainingSet)))
@@ -159,16 +167,16 @@ for epoch in range(n_epochs):
             correct = '✓' if guess == category else '✗ (%s)' % category
             print('%d %d%% (%s) %.4f %s / %s %s' % (
                 idx, idx / numberTrained * 100, timeSince(start), current_loss/(idx+1), line, guess, correct))
-            with open('logfile.log', 'a') as outfile:
+            with open(logfile_name, 'a') as outfile:
                 outfile.write('%d %d%% (%s) %.4f %s / %s %s\n' % (
                     idx, idx / numberTrained * 100, timeSince(start), current_loss/(idx+1), line, guess, correct))
 
-    print('Epoch {} finished, Average Loss = {}'.format(epoch + 1 + 2 *n_epochs,current_loss/numberTrained))
+    print('Epoch {} finished, Average Loss = {}'.format(epoch + 1,current_loss/numberTrained))
     all_losses.append(current_loss/numberTrained)
     print('Testing Model with Validation Data.')
 
-    with open('logfile.log', 'a') as outfile:
-        outfile.write('Epoch {} finished, Average Loss = {}\n'.format(epoch + 1 +2 * n_epochs,current_loss/numberTrained))
+    with open(logfile_name, 'a') as outfile:
+        outfile.write('Epoch {} finished, Average Loss = {}\n'.format(epoch + 1 ,current_loss/numberTrained))
         outfile.write('Testing Model with Validation Data.\n')
     with torch.no_grad():
         correct_word = 0
@@ -193,15 +201,15 @@ for epoch in range(n_epochs):
                 if guess[0] == category:
                     correct_not_word += 1
         print(correct_not_word,correct_word)
-        print('Epoch {}, Correct Word = {} %, Correct Not Word = {} %, Total Score = {}, Total Word = {}, Total Not Word = {}'.format(epoch+1+ 2 *n_epochs,
+        print('Epoch {}, Correct Word = {} %, Correct Not Word = {} %, Total Score = {}, Total Word = {}, Total Not Word = {}'.format(epoch+1,
                                                                                                 (correct_word/total_word)*100,
                                                                                                 (correct_not_word / total_not_word) * 100,
                                                                                                 ((correct_word+ correct_not_word) / (total_not_word+total_word)) * 100,total_word,total_not_word))
         print('Average Loss = {}'.format(total_val_loss/numValSet))
 
-        with open('logfile.log', 'a') as outfile:
+        with open(logfile_name, 'a') as outfile:
             outfile.write('Validating with {} samples\n'.format(len(trainingSet[trainingIdx:])))
-            outfile.write('Epoch {}, Correct Word = {} %, Correct Not Word = {} %, Total Score = {}\n'.format(epoch + 1+ 2 * n_epochs,
+            outfile.write('Epoch {}, Correct Word = {} %, Correct Not Word = {} %, Total Score = {}\n'.format(epoch + 1,
                                                                                                     (
                                                                                                                 correct_word / total_word) * 100,
                                                                                                     (
@@ -214,4 +222,4 @@ for epoch in range(n_epochs):
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss},'model_peptide_SGD_epoch_{}.ckpt'.format(epoch + n_epochs))
+            'loss': loss},'all_pos_{}.ckpt'.format(epoch))
