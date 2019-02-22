@@ -37,71 +37,51 @@ def category_from_output(output):
 
 PATH_TO_SETS = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets'
 amino_acids = set('ACDEFGHIKLMNPQRSTVWY')
+test_set_folder = '/Volumes/lab_data/Ripps/training_sets/test_sets'
 
-# negatives = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/negatives-trim.txt'
-# negative_lanthi = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/lanthi-neg.txt'
-#
-# positive_files = ['lanthi-all-clean','lasso-as4-clean','thio-all-clean']
-#
-# positives = set()
-#
-# for pos_training in positive_files:
-#     for line in open(os.path.join(PATH_TO_SETS,pos_training+'.txt')):
-#         line=line.strip().upper()
-#         if all(x in amino_acids for x in line):
-#             positives.add(line)
-#
-# # Only take 60% of the negative test set for training
-#
-# negativeSet = set()
-#
-# for line in open(negatives):
-#     line=line.strip().upper()
-#     if all(x in amino_acids for x in line):
-#         negativeSet.add(line)
-#
-# negativeLantiSet = set()
-# for line in open(negatives):
-#     line=line.strip().upper()
-#     if line not in positives:
-#         if all(x in amino_acids for x in line):
-#             negativeLantiSet.add(line)
-#
-# negativeTrainSet,negativeTestSet = split_set(negativeSet,0.35)
-# negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeSet,0.35)
-#
-#
-#
-# masterSet = [(neg, 0) for neg in negativeTrainSet]
-# masterSet.extend((neg, 0) for neg in negativeLantiTrainSet)
-# masterSet.extend((pos,1) for pos in positives)
+negatives = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/negatives-trim.txt'
+negative_lanthi = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/lanthi-neg.txt'
 
+positive_files = ['lanthi-all-clean','lasso-as4-clean','thio-all-clean','ripper-lasso-rodeo-all','ripper-micro-rodeo-all',
+                  'ripper-thio-rodeo-all','sacti-as4-clean','mcgarvey','ripper-hmm-pos']
 
-n_epochs = 30
-print_every = 100
-frac_train = 0.95
+logfile_name = '/Users/emzodls/Dropbox/Lab/Warwick/RiPP_nnets/check_models.log'
 
-n_hidden = 512
+positives = set()
 
-learning_rate = 0.001
+for pos_training in positive_files:
+    for line in open(os.path.join(PATH_TO_SETS,pos_training+'.txt')):
+        line=line.strip().upper()
+        if all(x in amino_acids for x in line):
+            positives.add(line)
 
-model = RNN(20,n_hidden,2)
+# Only take 60% of the negative test set for training
 
-criterion = nn.NLLLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
+negativeSet = set()
 
-saved_model_path = 'all_pos_lanthi_neg_193.ckpt'
+for line in open(negatives):
+    line=line.strip().upper()
+    if all(x in amino_acids for x in line):
+        negativeSet.add(line)
 
-if os.path.isfile(saved_model_path):
-    checkpoint = torch.load(saved_model_path)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    print("=> loaded checkpoint ")
-    with open('logfile.log','a') as outfile:
-        outfile.write("=> loaded checkpoint\n")
+negativeLantiSet = set()
+for line in open(negative_lanthi):
+    line=line.strip().upper()
+    if line not in positives:
+        if all(x in amino_acids for x in line):
+            negativeLantiSet.add(line)
+
+positives = set(x for x in positives if len(x) >= 20 and len(x) <= 120)
+negativeSet = set(x for x in negativeSet if len(x) >= 20 and len(x) <= 120)
+negativeLantiSet = set(x for x in negativeLantiSet if len(x) >= 20 and len(x) <= 120)
+
+# negativeTrainSet,negativeTestSet = split_set(negativeSet,0.50)
+# negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeLantiSet,0.50)
+
+negatives = negativeSet|negativeLantiSet
 
 print('Testing on Entire Set')
-print_every = 10000
+print_every = 1000
 
 def timeSince(since):
     now = time.time()
@@ -112,73 +92,70 @@ def timeSince(since):
 
 start = time.time()
 
-
+with open(logfile_name, 'a') as outfile:
+    outfile.write('Num Positive: {}, Num Negative: {}\n'.format(len(positives), len(negatives)))
+print('Num Positive: {}, Num Negative: {}'.format(len(positives), len(negatives)))
 with torch.no_grad():
-    with open('putative_peptides_prodigal_short.fa','w') as outfile:
-        wrong_words = set()
-        #test_set = [(str(x.seq),x.name) for x in SeqIO.parse('/Users/emzodls/Downloads/GCA_001770815.1_ASM177081v1_orfs.fa','fasta')]
-        #test_set = []
-        leader = 0
-        not_leader = 0
-        for idx,x in enumerate(SeqIO.parse('rep_genomes_prodigal_short_filtered.fa', 'fasta')):
-            if x.seq[-1] == '*':
-                sequence = x.seq[:-1]
+    #models_to_test = ['all_pos_{}.ckpt'.format(x) for x in range(160)]
+    models_to_test = ['all_pos_lanthi_neg_{}.ckpt'.format(x) for x in range(99,100)]
+    for model_name in models_to_test:
+        n_epochs = 30
+        print_every = 100
+        frac_train = 0.95
+
+        n_hidden = 512
+
+        learning_rate = 0.001
+
+        model = RNN(20, n_hidden, 2)
+        criterion = nn.NLLLoss()
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8, nesterov=True)
+        if os.path.isfile(model_name):
+            checkpoint = torch.load(model_name)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            print("=> loaded {}".format(model_name))
+            with open(logfile_name, 'a') as outfile:
+                outfile.write("=> loaded {}\n".format(model_name))
+        correct_word = 0
+        total_word = 0
+        correct_not_word = 0
+        total_not_word = 0
+        total_val_loss = 0
+        for idx,labeled_pair in enumerate((pos,1) for pos in positives):
+            category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
+            output = evaluate(model,line_tensor)
+            guess = category_from_output(output)
+            if category == 'word':
+                total_word += 1
+                if guess[0] == category:
+                    correct_word += 1
             else:
-                sequence = x.seq
-            if all(y in amino_acids for y in str(sequence)):
+                total_not_word += 1
+                if guess[0] == category:
+                    correct_not_word += 1
+        for idx,labeled_pair in enumerate((neg,0) for neg in negatives):
+            category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
+            output = evaluate(model,line_tensor)
+            guess = category_from_output(output)
+            if category == 'word':
+                total_word += 1
+                if guess[0] == category:
+                    correct_word += 1
+            else:
+                total_not_word += 1
+                if guess[0] == category:
+                    correct_not_word += 1
+        print('Model: {}, Correct Word = {:.4f} %, Correct Not Word = {:.4f} % Total Score = {:.4f} %'.format(model_name,
+                                                                               (correct_word / total_word) * 100,
+                                                                            (correct_not_word / total_not_word) * 100,
+              (correct_word + correct_not_word) / (total_not_word + total_word) * 100))
 
-            #numToTest = len(test_set)
-            #print('Testing {} peptides'.format(numToTest))
-            # for idx,(seq,name) in enumerate(test_set):
-                category, line, category_tensor, line_tensor = prepareTensors((sequence,1))
-                output = evaluate(model,line_tensor)
-                guess = category_from_output(output)
-                if guess[0] == 'word':
-                    leader += 1
-                    outfile.write('>{}\n{}\n'.format(x.name,line))
-                else:
-                    not_leader +=1
-                if idx % print_every == 0:
-                    print('%d (%s) %s / %s , Total Leader: %d, Total Not Leader %d' % (idx, timeSince(start), line, guess,leader,not_leader))
-    # print('Total = {}, Leader = {}, Not Leader = {}'.format(len(test_set),leader,not_leader))
-    #
-    # wrong_words = set()
-    # test_files = glob(os.path.join(test_set_folder,'*.txt'))
-    # for test_set_file in test_files:
-    #     test_pos = set()
-    #     test_set_name = os.path.splitext(os.path.split(test_set_file)[1])[0]
-    #     for line in open(test_set_file):
-    #         line = line.strip().upper()
-    #         if all(x in amino_acids for x in line):
-    #             test_pos.add(line)
-    #     print('Test Set: {}, Testing on {} Unique Percursor Peptides'.format(test_set_name,len(test_pos-positives)))
-    #     correct_word = 0
-    #     total_word = 0
-    #     correct_not_word = 0
-    #     total_not_word = 0
-    #     total_val_loss = 0
-    #     for idx,labeled_pair in enumerate((pos,1) for pos in test_pos-positives):
-    #         category, line, category_tensor, line_tensor = prepareTensors(labeled_pair)
-    #         output = evaluate(model,line_tensor)
-    #         guess = category_from_output(output)
-    #         if category == 'word':
-    #             total_word += 1
-    #             if guess[0] == category:
-    #                 correct_word += 1
-    #             else:
-    #                 wrong_words.add(line)
-    #         else:
-    #             total_not_word += 1
-    #             if guess[0] == category:
-    #                 correct_not_word += 1
-    #         if idx % print_every == 0:
-    #             guess, guess_i = category_from_output(output)
-    #             correct = '✓' if guess == category else '✗ (%s)' % category
-    #             print('%d %d%% (%s) %s / %s %s' % (
-    #                 idx, idx / len(positives) * 100, timeSince(start), line, guess, correct))
-    #
-    #     print('Correct Word = {} %'.format((correct_word / total_word) * 100))
-
+        with open(logfile_name, 'a') as outfile:
+            outfile.write('Model: {}, Correct Word = {:.4f} %, Correct Not Word = {:.4f} % Total Score = {:.4f} %\n'.format(model_name,
+                                                                               (correct_word / total_word) * 100,
+                                                                            (correct_not_word / total_not_word) * 100,
+              (correct_word + correct_not_word) / (total_not_word + total_word) * 100))
     #
     # with open('wrong_words.txt','w') as outfile:
     #     outfile.write(','.join(wrong_words))

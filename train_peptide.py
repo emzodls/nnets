@@ -26,7 +26,7 @@ negative_lanthi = '/Volumes/lab_data/Ripps/training_sets/cleaned_sets/lanthi-neg
 positive_files = ['lanthi-all-clean','lasso-as4-clean','thio-all-clean','ripper-lasso-rodeo-all','ripper-micro-rodeo-all',
                   'ripper-thio-rodeo-all','sacti-as4-clean','mcgarvey','ripper-hmm-pos']
 
-logfile_name = 'logfile_all.log'
+logfile_name = 'logfile_all_lanthi_neg.log'
 
 positives = set()
 
@@ -36,7 +36,7 @@ for pos_training in positive_files:
         if all(x in amino_acids for x in line):
             positives.add(line)
 
-# Only take 60% of the negative test set for training
+# Only take 50% of the negative test set for training
 
 negativeSet = set()
 
@@ -57,7 +57,7 @@ negativeSet = set(x for x in negativeSet if len(x) >= 20 and len(x) <= 120)
 negativeLantiSet = set(x for x in negativeLantiSet if len(x) >= 20 and len(x) <= 120)
 
 negativeTrainSet,negativeTestSet = split_set(negativeSet,0.50)
-negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeSet,0.50)
+negativeLantiTrainSet,negativeLantiTestSet = split_set(negativeLantiSet,0.50)
 
 print('Total Number of positives: {}'.format(len(positives)))
 print('Total Number of negatives: {}'.format(len(negativeTrainSet|negativeLantiTrainSet)))
@@ -86,8 +86,8 @@ model = RNN(20,n_hidden,2)
 criterion = nn.NLLLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.8,nesterov=True)
 
-if os.path.isfile('ripper_rodeo_200_epochs_198.ckpt'):
-    checkpoint = torch.load('ripper_rodeo_200_epochs_198.ckpt')
+if os.path.isfile('all_pos_148.ckpt'):
+    checkpoint = torch.load('all_pos_148.ckpt')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     print("=> loaded checkpoint ")
@@ -143,6 +143,13 @@ start = time.time()
 for epoch in range(n_epochs):
     ## Shuffle Training Set Every Epoch and Save 5% for validation
     print('Starting Epoch {}'.format(epoch+1))
+    negativeTrainSet, negativeTestSet = split_set(negativeTrainSet|negativeTestSet, 0.50)
+    negativeLantiTrainSet, negativeLantiTestSet = split_set(negativeLantiTrainSet|negativeLantiTestSet, 0.50)
+    print('Total Number of positives: {}'.format(len(positives)))
+    print('Total Number of negatives: {}'.format(len(negativeTrainSet | negativeLantiTrainSet)))
+    masterSet = [(neg, 0) for neg in negativeTrainSet]
+    masterSet.extend((neg, 0) for neg in negativeLantiTrainSet)
+    masterSet.extend((pos, 1) for pos in positives)
     shuffle(masterSet)
     trainingSet = masterSet
     print('Training with {} positives and {} negatives, for a total of {} exemplars'.format(len(positives),
@@ -222,4 +229,4 @@ for epoch in range(n_epochs):
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'loss': loss},'all_pos_{}.ckpt'.format(epoch))
+            'loss': loss},'all_pos_lanthi_neg_{}.ckpt'.format(epoch))
